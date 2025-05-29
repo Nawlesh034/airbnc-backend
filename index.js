@@ -22,7 +22,7 @@ app.use('/uploads',express.static(__dirname+'/uploads'));
 
 app.use(cors({   // for connecting frontend to backend
     credentials: true,
-    origin: 'https://airbnc-frontend.vercel.app',
+    origin: ['https://airbnc-frontend.vercel.app','http://localhost:5173']
 }));
 
 mongoose.connect(process.env.MONGO_URL);
