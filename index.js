@@ -35,6 +35,7 @@ mongoose.connect(process.env.MONGO_URL);
 function getUserDataFromToken(req) {
   return new Promise((resolve, reject) => {
     const token = req.cookies?.token;
+    console.log(token)
 
     if (!token) {
       return reject(new Error('No token provided'));
@@ -265,28 +266,29 @@ app.post('/places', (req, res) => {
 
   })
 app.post('/booking', async (req, res) => {
+ 
   try {
     const userData = await getUserDataFromToken(req);
-    const { place, checkIn, checkOut, guests, name, mobile, price } = req.body;
+   
+
+    const {
+      place, checkIn, checkOut, guests, name,
+      mobile, price,
+    } = req.body;
 
     const booking = await Booking.create({
-      place,
-      checkIn,
-      checkOut,
-      guests,
-      name,
-      mobile,
-      price,
+      place, checkIn, checkOut, guests, name,
+      mobile, price,
       user: userData.id,
     });
 
     res.json(booking);
   } catch (err) {
-    console.error("POST /booking error:", err);
-    res.status(500).json({ error: "Booking creation failed" });
+    console.error("Booking route error:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
-
+ 
 
 // ✅ Moved outside
 app.get('/booking', async (req, res) => {
