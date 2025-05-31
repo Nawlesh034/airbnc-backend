@@ -259,26 +259,29 @@ app.post('/places', (req, res) => {
     res.json(await Places.find());
 
   })
- app.post('/booking', async (req, res) => {
+app.post('/booking', async (req, res) => {
   try {
     const userData = await getUserDataFromToken(req);
-    const {
-      place, checkIn, checkOut, guests, name,
-      mobile, price,
-    } = req.body;
+    const { place, checkIn, checkOut, guests, name, mobile, price } = req.body;
 
-    const bookingDoc = await Booking.create({
-      place, checkIn, checkOut, guests, name,
-      mobile, price,
+    const booking = await Booking.create({
+      place,
+      checkIn,
+      checkOut,
+      guests,
+      name,
+      mobile,
+      price,
       user: userData.id,
     });
 
-    res.json(bookingDoc);
+    res.json(booking);
   } catch (err) {
-    console.error('Error creating booking:', err);
-    res.status(500).json({ error: 'Failed to create booking' });
+    console.error("POST /booking error:", err);
+    res.status(500).json({ error: "Booking creation failed" });
   }
 });
+
 
 // ✅ Moved outside
 app.get('/booking', async (req, res) => {
