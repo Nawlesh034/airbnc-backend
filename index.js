@@ -9,6 +9,8 @@ const Booking = require('./models/Booking.js')
 const cookieParser = require('cookie-parser');
 require('dotenv').config();
 const imageDownloader =require('image-downloader')
+const path = require('path');
+
 
 const multer =require('multer');
 const fs =require('fs');
@@ -103,29 +105,48 @@ app.post('/logout',(req,res)=>{
 })
 // console.log(__dirname);
 app.post("/upload-by-link", async (req, res) => {
-    const { link } = req.body;
-    const newName = "photo" + Date.now() + ".jpg";
+  const { link } = req.body;
+
+  if (!link) {
+    return res.status(400).json({ error: "Link is required" });
+  }
+
+  const newName = "photo" + Date.now() + ".jpg";
+  const dest = path.join(__dirname, 'uploads', newName);
+
+  try {
     await imageDownloader.image({
       url: link,
-      dest: `${__dirname}/uploads/${newName}`, // Added a forward slash before newName
+      dest: dest
     });
-    res.json(newName); // Return only the filename instead of the full path
-  });
+
+    res.json(newName);
+  } catch (err) {
+    console.error("Image download failed:", err);
+    res.status(500).json({ error: "Failed to download image" });
+  }
+});
 
    const photoMiddleware = multer({dest:'uploads'})
 
-  app.post('/upload',photoMiddleware.array('photos',100),(req,res)=>{
-    const uploadedFiles = []; 
-    for(let i=0;i<req.files.length;i++){
-        const {path,originalname}=req.files[i];
-       const parts= originalname.split('.');
-       const ext = parts[parts.length-1];
-        const newPath =path + '.' + ext;
-        fs.renameSync(path, newPath);
-        uploadedFiles.push(newPath.replace('uploads',''));
-    }
-    res.json(uploadedFiles);
-  })
+ app.post('/upload', photoMiddleware.array('photos', 100), (req, res) => {
+  const uploadedFiles = [];
+
+  for (let i = 0; i < req.files.length; i++) {
+    const { path: tempPath, originalname } = req.files[i];
+    const ext = path.extname(originalname); // Get extension like ".jpg"
+    const newPath = tempPath + ext;
+
+    fs.renameSync(tempPath, newPath);
+
+    // Remove "uploads/" prefix for clean filename
+    const relativePath = path.basename(newPath);
+
+    uploadedFiles.push(relativePath);
+  }
+
+  res.json(uploadedFiles);
+});
 
   app.post('/places',(req,res)=>{
     const {token}=req.cookies;
