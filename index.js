@@ -259,30 +259,38 @@ app.post('/places', (req, res) => {
     res.json(await Places.find());
 
   })
-  app.post('/booking',async(req,res)=>{
-    const userData= await getUserDataFromToken(req)
-    const{
-      place,checkIn,checkOut,guests,name,
-      mobile,price,
-    }=req.body;
+ app.post('/booking', async (req, res) => {
+  try {
+    const userData = await getUserDataFromToken(req);
+    const {
+      place, checkIn, checkOut, guests, name,
+      mobile, price,
+    } = req.body;
 
-    Booking.create({
-        place,checkIn,checkOut,guests,name,
-        mobile,price,
-        user:userData.id,
-    }).then((doc)=>{
-       
-        res.json(doc)
-    }).catch((err)=>{
-        throw err;
-    })
-    app.get('/booking',async(req,res)=>{
-        const userData=  await getUserDataFromToken(req)
-        // becoz it returning promise so that's why we have to wait here     
-      res.json(await Booking.find({user:userData.id}).populate('place'))
-   
-    })
+    const bookingDoc = await Booking.create({
+      place, checkIn, checkOut, guests, name,
+      mobile, price,
+      user: userData.id,
+    });
 
-  })
+    res.json(bookingDoc);
+  } catch (err) {
+    console.error('Error creating booking:', err);
+    res.status(500).json({ error: 'Failed to create booking' });
+  }
+});
+
+// ✅ Moved outside
+app.get('/booking', async (req, res) => {
+  try {
+    const userData = await getUserDataFromToken(req);
+    const bookings = await Booking.find({ user: userData.id }).populate('place');
+    res.json(bookings);
+  } catch (err) {
+    console.error('Error fetching bookings:', err);
+    res.status(500).json({ error: 'Failed to fetch bookings' });
+  }
+});
+
 
 app.listen(4000);
