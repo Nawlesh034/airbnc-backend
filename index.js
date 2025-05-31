@@ -9,6 +9,8 @@ const Booking = require('./models/Booking.js')
 const cookieParser = require('cookie-parser');
 require('dotenv').config();
 const imageDownloader =require('image-downloader')
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const cloudinary = require('cloudinary').v2;
 const path = require('path');
 
 
@@ -39,6 +41,22 @@ function getUserDataFromToken(req){
     })
 
 }
+
+
+//Cloudinary Setup
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'my_uploads', // Cloud folder name
+    allowed_formats: ['jpg', 'png', 'jpeg']
+  }
+});
+
 
 app.get('/test', (req, res) => {
     res.json('test ok');
@@ -111,61 +129,95 @@ app.post("/upload-by-link", async (req, res) => {
     return res.status(400).json({ error: "Link is required" });
   }
 
-  const newName = "photo" + Date.now() + ".jpg";
-  const dest = path.join(__dirname, 'uploads', newName);
-
   try {
-    await imageDownloader.image({
-      url: link,
-      dest: dest
+    const result = await cloudinary.uploader.upload(link, {
+      folder: 'my_uploads', // Optional folder inside Cloudinary
+      public_id: "photo" + Date.now() // Optional custom name
     });
 
-    res.json(newName);
+    res.json({
+      url: result.secure_url,
+      public_id: result.public_id
+    });
   } catch (err) {
-    console.error("Image download failed:", err);
-    res.status(500).json({ error: "Failed to download image" });
+    console.error("Cloudinary upload failed:", err);
+    res.status(500).json({ error: "Failed to upload to Cloudinary" });
   }
 });
 
    const photoMiddleware = multer({dest:'uploads'})
+  
 
- app.post('/upload', photoMiddleware.array('photos', 100), (req, res) => {
+app.post('/upload', photoMiddleware.array('photos', 100), async (req, res) => {
   const uploadedFiles = [];
 
   for (let i = 0; i < req.files.length; i++) {
     const { path: tempPath, originalname } = req.files[i];
-    const ext = path.extname(originalname); // Get extension like ".jpg"
-    const newPath = tempPath + ext;
+    const ext = path.extname(originalname);
 
-    fs.renameSync(tempPath, newPath);
+    try {
+      const result = await cloudinary.uploader.upload(tempPath, {
+        folder: 'my_uploads',
+        public_id: path.parse(originalname).name + '-' + Date.now()
+      });
 
-    // Remove "uploads/" prefix for clean filename
-    const relativePath = path.basename(newPath);
+      uploadedFiles.push({
+        url: result.secure_url,
+        public_id: result.public_id
+      });
 
-    uploadedFiles.push(relativePath);
+      fs.unlinkSync(tempPath); // Clean up local temp file
+    } catch (err) {
+      console.error('Cloudinary upload failed:', err);
+    }
   }
 
   res.json(uploadedFiles);
 });
 
-  app.post('/places',(req,res)=>{
-    const {token}=req.cookies;
-    const{
-        title,address,addPhoto,description
-        ,perks,extraInfo,checkIn,checkOut, maxGuests,price
-    } = req.body
-    if(token){
-        jwt.verify(token,jwtSecret,{},async (err,user)=>{
-            if(err) throw err;
-         const placeDoc =   await Places.create({
-                owner:user.id,
-                title,address, addPhoto,description
-                ,perks,extraInfo,checkIn,checkOut, maxGuests,price
-            })
-            res.json(placeDoc);
-        })
-    }
-  })
+app.post('/places', (req, res) => {
+  const { token } = req.cookies;
+  const {
+    title,
+    address,
+    addPhoto,
+    description,
+    perks,
+    extraInfo,
+    checkIn,
+    checkOut,
+    maxGuests,
+    price
+  } = req.body;
+
+  if (token) {
+    jwt.verify(token, jwtSecret, {}, async (err, user) => {
+      if (err) throw err;
+
+      // ✅ Convert array of objects to array of URL strings
+      const photoUrls = Array.isArray(addPhoto)
+        ? addPhoto.map(photo => photo.url)
+        : [];
+
+      const placeDoc = await Places.create({
+        owner: user.id,
+        title,
+        address,
+        addPhoto: photoUrls, // ✅ Only URLs now
+        description,
+        perks,
+        extraInfo,
+        checkIn,
+        checkOut,
+        maxGuests,
+        price
+      });
+
+      res.json(placeDoc);
+    });
+  }
+});
+
 
   app.get('/user-places',(req,res)=>{
     const {token}=req.cookies;
