@@ -24,22 +24,27 @@ app.use(express.json());
 app.use(cookieParser());
 app.use('/uploads',express.static(__dirname+'/uploads'));
 
-app.use(cors({   // for connecting frontend to backend
-    credentials: true,
-    origin: ['https://airbnc-frontend.vercel.app','http://localhost:5173']
+app.use(cors({
+  origin: ['https://airbnc-frontend.vercel.app', 'http://localhost:5173'],
+  credentials: true,
 }));
 
 mongoose.connect(process.env.MONGO_URL);
 
 
-function getUserDataFromToken(req){
-    return new Promise((resolve,request)=>{
-        jwt.verify(req.cookies.token,jwtSecret,{},async(err,user)=>{
-            if(err) throw err;
-            resolve(user);
-        })
-    })
+function getUserDataFromToken(req) {
+  return new Promise((resolve, reject) => {
+    const token = req.cookies?.token;
 
+    if (!token) {
+      return reject(new Error('No token provided'));
+    }
+
+    jwt.verify(token, jwtSecret, {}, (err, user) => {
+      if (err) return reject(err);
+      resolve(user);
+    });
+  });
 }
 
 
