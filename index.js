@@ -32,21 +32,7 @@ app.use(cors({
 mongoose.connect(process.env.MONGO_URL);
 
 
-function getUserDataFromToken(req) {
-  return new Promise((resolve, reject) => {
-    const token = req.cookies?.token;
-   
 
-    if (!token) {
-      return reject(new Error('No token provided'));
-    }
-
-    jwt.verify(token, jwtSecret, {}, (err, user) => {
-      if (err) return reject(err);
-      resolve(user);
-    });
-  });
-}
 
 
 //Cloudinary Setup
@@ -113,6 +99,21 @@ app.post('/login',async(req,res)=>{
         res.json('Not Found');
     }
 })
+function getUserDataFromToken(req) {
+  return new Promise((resolve, reject) => {
+    const token = req.cookies?.token;
+   
+
+    if (!token) {
+      return reject(new Error('No token provided'));
+    }
+
+    jwt.verify(token, jwtSecret, {}, (err, user) => {
+      if (err) return reject(err);
+      resolve(user);
+    });
+  });
+}
 app.get('/profile',(req,res)=>{
     const {token}=req.cookies;
     if(token){
