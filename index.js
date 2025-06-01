@@ -35,7 +35,7 @@ mongoose.connect(process.env.MONGO_URL);
 function getUserDataFromToken(req) {
   return new Promise((resolve, reject) => {
     const token = req.cookies?.token;
-    console.log(token)
+   
 
     if (!token) {
       return reject(new Error('No token provided'));
