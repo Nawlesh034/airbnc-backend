@@ -6,7 +6,7 @@ const jwt =require('jsonwebtoken');
 const UserMo = require('./models/User.js');
 const Places = require('./models/Place.js');
 const Booking = require('./models/Booking.js')
-const cookieParser = require('cookie-parser');
+
 require('dotenv').config();
 const imageDownloader =require('image-downloader')
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
@@ -21,6 +21,7 @@ const secret = bcrypt.genSaltSync(10);// sync means it block the execution of th
 const jwtSecret='fwefhhdfdsn5fvvv6bbkkbacke';
 
 app.use(express.json());
+const cookieParser = require('cookie-parser');
 app.use(cookieParser());
 app.use('/uploads',express.static(__dirname+'/uploads'));
 
@@ -83,7 +84,7 @@ app.post('/login',async(req,res)=>{
                res.cookie('token', token, {
   httpOnly: true,
   secure: true,
-  sameSite: 'lax',
+  sameSite: 'none',
 }).json(userDoc);
 
             });
