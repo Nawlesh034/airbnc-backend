@@ -74,17 +74,22 @@ app.post('/register', async (req, res) => {
 
 app.post('/login',async(req,res)=>{
     const{email,password}=req.body;
+    console.log(jwtSecret);
     const userDoc=await UserMo.findOne({email});
+    
     if(userDoc){
         // res.json('found');
         const passok=bcrypt.compareSync(password,userDoc.password);
+        console.log(jwtSecret);
         if(passok){
             jwt.sign({email:userDoc.email, id:userDoc._id},jwtSecret,{},(err,token)=>{
                 if (err) throw err;
+                console.log(token)
                res.cookie('token', token, {
   httpOnly: true,
   secure: true,
   sameSite: 'none',
+maxAge: 24 * 60 * 60 * 1000 
 }).json(userDoc);
 
             });
@@ -103,7 +108,7 @@ app.post('/login',async(req,res)=>{
 function getUserDataFromToken(req) {
   return new Promise((resolve, reject) => {
     const token = req.cookies?.token;
-   
+   console.log(token,"nawlesh")
 
     if (!token) {
       return reject(new Error('No token provided'));
