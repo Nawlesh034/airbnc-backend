@@ -26,11 +26,28 @@ app.use(cookieParser());
 app.use('/uploads',express.static(__dirname+'/uploads'));
 
 app.use(cors({
-  origin: ['https://airbnc-frontend.vercel.app', 'http://localhost:5173'],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    const allowedOrigins = [
+      'https://airbnc-frontend.vercel.app',
+      'http://localhost:5173',
+      'http://localhost:5174'
+    ];
+
+    if (allowedOrigins.indexOf(origin) !== -1 || origin.startsWith('http://localhost:')) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
 }));
 
-mongoose.connect(process.env.MONGO_URL);
+mongoose.connect(process.env.MONGO_URL)
+  .then(() => console.log('Connected to MongoDB'))
+  .catch(err => console.error('MongoDB connection error:', err));
 
 
 
@@ -136,7 +153,12 @@ app.get('/profile',(req,res)=>{
 })
 
 app.post('/logout',(req,res)=>{
-    res.cookie('token','').json(true);
+    res.cookie('token', '', {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+        expires: new Date(0) // Set expiration to past date
+    }).json(true);
 })
 // console.log(__dirname);
 app.post("/upload-by-link", async (req, res) => {
@@ -192,89 +214,94 @@ app.post('/upload', photoMiddleware.array('photos', 100), async (req, res) => {
   res.json(uploadedFiles);
 });
 
-app.post('/places', (req, res) => {
-  const { token } = req.cookies;
-  const {
-    title,
-    address,
-    addPhoto,
-    description,
-    perks,
-    extraInfo,
-    checkIn,
-    checkOut,
-    maxGuests,
-    price
-  } = req.body;
+app.post('/places', async (req, res) => {
+  try {
+    const userData = await getUserDataFromToken(req);
+    const {
+      title,
+      address,
+      addPhoto,
+      description,
+      perks,
+      extraInfo,
+      checkIn,
+      checkOut,
+      maxGuests,
+      price
+    } = req.body;
 
-  if (token) {
-    jwt.verify(token, jwtSecret, {}, async (err, user) => {
-      if (err) throw err;
+    // ✅ Convert array of objects to array of URL strings
+    const photoUrls = Array.isArray(addPhoto)
+      ? addPhoto.map(photo => typeof photo === 'string' ? photo : photo.url)
+      : [];
 
-      // ✅ Convert array of objects to array of URL strings
-      const photoUrls = Array.isArray(addPhoto)
-        ? addPhoto.map(photo => photo.url)
-        : [];
-
-      const placeDoc = await Places.create({
-        owner: user.id,
-        title,
-        address,
-        addPhoto: photoUrls, // ✅ Only URLs now
-        description,
-        perks,
-        extraInfo,
-        checkIn,
-        checkOut,
-        maxGuests,
-        price
-      });
-
-      res.json(placeDoc);
+    const placeDoc = await Places.create({
+      owner: userData.id,
+      title,
+      address,
+      addPhoto: photoUrls, // ✅ Only URLs now
+      description,
+      perks,
+      extraInfo,
+      checkIn,
+      checkOut,
+      maxGuests,
+      price
     });
+
+    res.json(placeDoc);
+  } catch (err) {
+    console.error('Error creating place:', err);
+    res.status(401).json({ error: 'Authentication required' });
   }
 });
 
 
-  app.get('/user-places',(req,res)=>{
-    const {token}=req.cookies;
-    
-    jwt.verify(token,jwtSecret,{},async (err,user)=>{
-       
-        const {id}=user;
-        res.json(await Places.find({owner:id}));
-    })
+  app.get('/user-places', async (req,res)=>{
+    try {
+        const userData = await getUserDataFromToken(req);
+        const places = await Places.find({owner: userData.id});
+        res.json(places);
+    } catch (err) {
+        console.error('Error fetching user places:', err);
+        res.status(401).json({ error: 'Authentication required' });
+    }
   })
   app.get('/places/:id',async(req,res)=>{
     const {id} = req.params;
     res.json(await Places.findById(id))
   })
-  app.put('/places',async(req,res)=>{
-    
-    const {token}=req.cookies;
-    const{
-       id, title,address, addPhoto,description
-        ,perks,extraInfo,checkIn,checkOut, maxGuests,price
-    } = req.body;
-
-   
-    jwt.verify(token,jwtSecret,{},async (err,user)=>{
-        if(err) throw err;
-        const placeDoc=await Places.findById(id);
-       if(user.id===placeDoc.owner.toString()){
-        placeDoc.set({
-            title,address,addPhoto,description
+  app.put('/places', async (req,res)=>{
+    try {
+        const userData = await getUserDataFromToken(req);
+        const{
+           id, title,address, addPhoto,description
             ,perks,extraInfo,checkIn,checkOut, maxGuests,price
-        })
-       await placeDoc.save()
-        res.json('oknawlesh');
-       }
-    })
+        } = req.body;
 
+        const placeDoc = await Places.findById(id);
+        if (!placeDoc) {
+            return res.status(404).json({ error: 'Place not found' });
+        }
+
+        if(userData.id === placeDoc.owner.toString()){
+            placeDoc.set({
+                title,address,addPhoto,description
+                ,perks,extraInfo,checkIn,checkOut, maxGuests,price
+            })
+           await placeDoc.save()
+            res.json('Place updated successfully');
+        } else {
+            res.status(403).json({ error: 'Not authorized to edit this place' });
+        }
+    } catch (err) {
+        console.error('Error updating place:', err);
+        res.status(401).json({ error: 'Authentication required' });
+    }
   })
   app.get('/places',async(req,res)=>{
-    res.json(await Places.find());
-
+    const places = await Places.find();
+    res.json(places);
   })
 app.post('/booking', async (req, res) => {
  
@@ -314,4 +341,6 @@ app.get('/booking', async (req, res) => {
 });
 
 
-app.listen(4000);
+app.listen(4000, () => {
+  console.log('Server is running on port 4000');
+});
